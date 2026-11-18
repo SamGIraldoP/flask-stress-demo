@@ -18,6 +18,10 @@ services:
     # estos campos equivalentes funcionan con 'docker compose up' en Compose v2.
     cpus: 2.0
     mem_limit: 256m
+    # Modo resiliente: 2 workers de gunicorn. Al saturar la RAM muere un worker
+    # (OOMKilled=true) pero el contenedor se mantiene en pie.
+    environment:
+      SERVER_MODE: gunicorn
     # Reinicia el contenedor cuando el OOM killer lo tumbe, para ver el ciclo.
     restart: "no"
     healthcheck:
@@ -25,3 +29,19 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+
+  # Variante FRAGIL: un unico proceso. Al saturar la RAM, el OOM killer mata
+  # el proceso PID 1 y el CONTENEDOR ENTERO cae con exit code 137.
+  # Arrancalo con:  docker compose up --build flask-api-fragil
+  flask-api-fragil:
+    build: .
+    image: flask-stress-demo
+    container_name: flask-stress-demo-fragil
+    profiles: ["fragil"]
+    ports:
+      - "8081:5000"
+    cpus: 2.0
+    mem_limit: 256m
+    environment:
+      SERVER_MODE: single
+    restart: "no"

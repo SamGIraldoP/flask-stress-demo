@@ -55,13 +55,54 @@ Para observar el impacto en tiempo real, en otra terminal:
 docker stats flask-stress-demo
 ```
 
+> Nota: el contenedor expone el puerto **8080** del host (`8080:5000`). Si usas `stress.sh`
+> apuntando a otro host/puerto, pásalo con `BASE_URL`, por ejemplo:
+> `BASE_URL=http://localhost:8080 ./stress.sh ram`
+
 ### Qué esperar
 
 - **CPU**: con `burn-cpu` verás el contenedor fijado en ~200% (sus 2 núcleos al 100%).
   Como está limitado a 2 CPUs, no podrá pasar de ahí aunque lances más hilos.
 - **RAM**: con `eat-ram` en bucle, al superar los 256 MiB el **OOM killer** del kernel
-  matará el worker de gunicorn (verás `Worker ... was sent SIGKILL! Perhaps out of memory?`
-  o el contenedor saldrá con código 137). Ese es el "tumbado" por saturación de recursos.
+  mata un proceso dentro del contenedor.
+
+## Dos modos: resiliente vs. frágil
+
+Importa qué proceso mata el OOM killer:
+
+- **Modo `gunicorn` (por defecto)** — hay un proceso *master* y 2 *workers*. Al saturar
+  la RAM, el kernel mata un **worker**; el master lo relanza y el **contenedor sigue vivo**.
+  Lo verás como `OOMKilled=true` pero el contenedor en estado `Up` y `ExitCode=0`.
+  Es el comportamiento de un servicio resiliente que se degrada pero no cae del todo.
+
+- **Modo `single` (frágil)** — un **único proceso** (PID 1). Al saturar la RAM, el OOM
+  killer mata ese proceso y **el contenedor entero cae** con **exit code 137**.
+
+El modo se elige con la variable de entorno `SERVER_MODE` (ver `entrypoint.sh`).
+
+### Tumbar el contenedor ENTERO (exit 137)
+
+```bash
+# Levanta la variante frágil (puerto 8081, un solo proceso):
+docker compose --profile fragil up --build flask-api-fragil
+
+# En otra terminal, satura su RAM:
+BASE_URL=http://localhost:8081 ./stress.sh ram
+
+# Comprueba que el contenedor cayó por OOM:
+docker inspect flask-stress-demo-fragil --format '{{.State.OOMKilled}} exit={{.State.ExitCode}}'
+# Esperado: true exit=137
+```
+
+### Verificar un OOM kill (cualquier modo)
+
+```bash
+docker inspect <nombre-contenedor> --format '{{.State.OOMKilled}} exit={{.State.ExitCode}}'
+```
+
+- `OOMKilled=true` confirma que el kernel mató un proceso por falta de memoria.
+- `ExitCode=137` (= 128 + SIGKILL 9) significa que **el contenedor** cayó por ello.
+  En modo gunicorn verás `OOMKilled=true` con `ExitCode=0` porque solo cayó un worker.
 
 ## Nota
 
