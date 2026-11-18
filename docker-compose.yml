@@ -3,8 +3,10 @@ services:
     build: .
     image: flask-stress-demo
     container_name: flask-stress-demo
+    # Puerto del host 8080 -> 5000 del contenedor.
+    # Usamos 8080 en el host para evitar chocar con otros servicios (p. ej. CUPS) que a veces ocupan el 5000.
     ports:
-      - "5000:5000"
+      - "8080:5000"
     # Límites de recursos: 2 núcleos y 256 MiB de RAM.
     # Con tan poca RAM, el endpoint /eat-ram provocará el OOM killer rápido.
     deploy:
