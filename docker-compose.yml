@@ -1,0 +1,25 @@
+services:
+  flask-api:
+    build: .
+    image: flask-stress-demo
+    container_name: flask-stress-demo
+    ports:
+      - "5000:5000"
+    # Límites de recursos: 2 núcleos y 256 MiB de RAM.
+    # Con tan poca RAM, el endpoint /eat-ram provocará el OOM killer rápido.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 256M
+    # 'deploy.resources.limits' solo aplica con Docker Swarm en algunas versiones;
+    # estos campos equivalentes funcionan con 'docker compose up' en Compose v2.
+    cpus: 2.0
+    mem_limit: 256m
+    # Reinicia el contenedor cuando el OOM killer lo tumbe, para ver el ciclo.
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
